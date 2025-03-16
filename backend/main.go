@@ -1,10 +1,8 @@
 package main
 
-import (
-	"fmt"
-)
+import "backend/analyzer"
 
 
 func main() {
-    fmt.Print("Hello World")
+	analyzer.Analyze()
 }
