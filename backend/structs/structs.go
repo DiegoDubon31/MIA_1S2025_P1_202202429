@@ -13,11 +13,10 @@ type MRB struct {
 }
 
 func PrintMBR(data MRB) {
-	fmt.Println(fmt.Sprintf("CreationDate: %s, fit: %s, size: %d, Signature: %d",
-		string(data.CreationDate[:]),
-		string(data.Fit[:]),
-		data.MbrSize,
-		data.Signature))
+	fmt.Println(fmt.Sprintf("CreationDate: %s, fit: %s, size: %d", string(data.CreationDate[:]), string(data.Fit[:]), data.MbrSize))
+	for i := 0; i < 4; i++ {
+		PrintPartition(data.Partitions[i])
+	}
 }
 
 type Partition struct {
@@ -59,22 +58,111 @@ func PrintEBR(data EBR) {
 		data.PartNext,
 		data.PartMount))
 }
-/*
-   MbrSize (4 bytes):
-       Hex:
 
-   CreationDate (10 bytes):
-       Hex:
+type Superblock struct {
+	S_filesystem_type   int32    // Guarda el número que identifica el sistema de archivos utilizado
+	S_inodes_count      int32    // Guarda el número total de inodos
+	S_blocks_count      int32    // Guarda el número total de bloques
+	S_free_blocks_count int32    // Contiene el número de bloques libres
+	S_free_inodes_count int32    // Contiene el número de inodos libres
+	S_mtime             [17]byte // Última fecha en el que el sistema fue montado
+	S_umtime            [17]byte // Última fecha en que el sistema fue desmontado
+	S_mnt_count         int32    // Indica cuantas veces se ha montado el sistema
+	S_magic             int32    // Valor que identifica al sistema de archivos, tendrá el valor 0xEF53
+	S_inode_size        int32    // Tamaño del inodo
+	S_block_size        int32    // Tamaño del bloque
+	S_fist_ino          int32    // Primer inodo libre (dirección del inodo)
+	S_first_blo         int32    // Primer bloque libre (dirección del inodo)
+	S_bm_inode_start    int32    // Guardará el inicio del bitmap de inodos
+	S_bm_block_start    int32    // Guardará el inicio del bitmap de bloques
+	S_inode_start       int32    // Guardará el inicio de la tabla de inodos
+	S_block_start       int32    // Guardará el inicio de la tabla de bloques
+}
 
-	Los siguientes 10 bytes son: 32 30 32 34 2D 30 38 2D 30 39,
-	que en texto plano representan la fecha 2024-08-09.
+func PrintSuperblock(sb Superblock) {
+	fmt.Println("====== Superblock ======")
+	fmt.Printf("S_filesystem_type: %d\n", sb.S_filesystem_type)
+	fmt.Printf("S_inodes_count: %d\n", sb.S_inodes_count)
+	fmt.Printf("S_blocks_count: %d\n", sb.S_blocks_count)
+	fmt.Printf("S_free_blocks_count: %d\n", sb.S_free_blocks_count)
+	fmt.Printf("S_free_inodes_count: %d\n", sb.S_free_inodes_count)
+	fmt.Printf("S_mtime: %s\n", string(sb.S_mtime[:]))
+	fmt.Printf("S_umtime: %s\n", string(sb.S_umtime[:]))
+	fmt.Printf("S_mnt_count: %d\n", sb.S_mnt_count)
+	fmt.Printf("S_magic: 0x%X\n", sb.S_magic) // Usamos 0x%X para mostrarlo en formato hexadecimal
+	fmt.Printf("S_inode_size: %d\n", sb.S_inode_size)
+	fmt.Printf("S_block_size: %d\n", sb.S_block_size)
+	fmt.Printf("S_fist_ino: %d\n", sb.S_fist_ino)
+	fmt.Printf("S_first_blo: %d\n", sb.S_first_blo)
+	fmt.Printf("S_bm_inode_start: %d\n", sb.S_bm_inode_start)
+	fmt.Printf("S_bm_block_start: %d\n", sb.S_bm_block_start)
+	fmt.Printf("S_inode_start: %d\n", sb.S_inode_start)
+	fmt.Printf("S_block_start: %d\n", sb.S_block_start)
+	fmt.Println("========================")
+}
 
+type Inode struct {
+	I_uid   int32
+	I_gid   int32
+	I_size  int32
+	I_atime [17]byte
+	I_ctime [17]byte
+	I_mtime [17]byte
+	I_block [15]int32
+	I_type  [1]byte
+	I_perm  [3]byte
+}
 
-   Signature (4 bytes):
-       Hex:
+func PrintInode(inode Inode) {
+	fmt.Println("====== Inode ======")
+	fmt.Printf("I_uid: %d\n", inode.I_uid)
+	fmt.Printf("I_gid: %d\n", inode.I_gid)
+	fmt.Printf("I_size: %d\n", inode.I_size)
+	fmt.Printf("I_atime: %s\n", string(inode.I_atime[:]))
+	fmt.Printf("I_ctime: %s\n", string(inode.I_ctime[:]))
+	fmt.Printf("I_mtime: %s\n", string(inode.I_mtime[:]))
+	fmt.Printf("I_type: %s\n", string(inode.I_type[:]))
+	fmt.Printf("I_perm: %s\n", string(inode.I_perm[:]))
+	fmt.Printf("I_block: %v\n", inode.I_block)
+	fmt.Println("===================")
+}
 
-   Fit (1 byte):
-       Hex:
+type Folderblock struct {
+	B_content [4]Content
+}
 
+func PrintFolderblock(folderblock Folderblock) {
+	fmt.Println("====== Folderblock ======")
+	for i, content := range folderblock.B_content {
+		fmt.Printf("Content %d: Name: %s, Inodo: %d\n", i, string(content.B_name[:]), content.B_inodo)
+	}
+	fmt.Println("=========================")
+}
 
-*/
+type Content struct {
+	B_name  [12]byte //Este campo almacena el nombre de un archivo o carpeta
+	B_inodo int32    //Se utiliza un arreglo de bytes ([12]byte) para asegurar que el nombre tenga un tamaño fijo y sea fácil de manejar
+}
+
+type Fileblock struct {
+	B_content [64]byte
+}
+
+func PrintFileblock(fileblock Fileblock) {
+	fmt.Println("====== Fileblock ======")
+	fmt.Printf("B_content: %s\n", string(fileblock.B_content[:]))
+	fmt.Println("=======================")
+}
+
+type Pointerblock struct {
+	B_pointers [16]int32 //Este campo es un apuntador al inodo asociado al archivo o carpeta.
+	//Cada apuntador es un int32 (4 bytes), lo que permite direccionar hasta 2^32 bloques
+}
+
+func PrintPointerblock(pointerblock Pointerblock) {
+	fmt.Println("====== Pointerblock ======")
+	for i, pointer := range pointerblock.B_pointers {
+		fmt.Printf("Pointer %d: %d\n", i, pointer)
+	}
+	fmt.Println("=========================")
+}

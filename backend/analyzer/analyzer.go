@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"backend/models"
+	"backend/FyleSystem"
 	"bufio"   //Para leer la entrada del usuario
 	"flag"    //Para manejar parametros y opciones de comandos
 	"fmt"     //imprimir
@@ -60,6 +61,12 @@ func AnalyzeCommnad(command string, params string) {
 		fn_mkdisk(params)
 	}else if strings.Contains(command, "fdisk") {
 		fn_fdisk(params)
+	}else if strings.Contains(command, "mount") {
+		fn_mount(params)
+	} else if strings.Contains(command, "mkfs") {
+		fn_mkfs(params)
+	} else if strings.Contains(command, "rmdisk") {
+		fn_rmdisk(params)
 	}else if strings.Contains(command, "salir") {
 		fmt.Println("Saliendo del programa...")
 		os.Exit(0) // Termina la ejecución del programa
@@ -177,12 +184,12 @@ func fn_fdisk(input string) {
 
 	// Si no se proporcionó un fit, usar el valor predeterminado "w"
 	if *fit == "" {
-		*fit = "w"
+		*fit = "wf"
 	}
 
 	// Validar fit (b/w/f)
-	if *fit != "b" && *fit != "f" && *fit != "w" {
-		fmt.Println("Error: Fit must be 'b', 'f', or 'w'")
+	if *fit != "bf" && *fit != "ff" && *fit != "wf" {
+		fmt.Println("Error: Fit must be 'bf', 'ff', or 'wf'")
 		return
 	}
 
@@ -198,4 +205,109 @@ func fn_fdisk(input string) {
 
 	// Llamar a la función
 	models.Fdisk(*size, *unit, *path, *type_, *fit, *name)
+}
+
+func fn_mount(params string) {
+	fs := flag.NewFlagSet("mount", flag.ExitOnError)
+	path := fs.String("path", "", "Ruta")
+	name := fs.String("name", "", "Nombre de la partición")
+
+	fs.Parse(os.Args[1:])
+	matches := re.FindAllStringSubmatch(params, -1)
+
+	for _, match := range matches {
+		flagName := match[1]
+		flagValue := strings.ToLower(match[2]) // Convertir todo a minúsculas
+		flagValue = strings.Trim(flagValue, "\"")
+		fs.Set(flagName, flagValue)
+	}
+
+	if *path == "" || *name == "" {
+		fmt.Println("Error: Path y Name son obligatorios")
+		return
+	}
+
+	// Convertir el nombre a minúsculas antes de pasarlo al Mount
+	lowercaseName := strings.ToLower(*name)
+	models.Mount(*path, lowercaseName)
+}
+
+func fn_mkfs(input string) {
+	fs := flag.NewFlagSet("mkfs", flag.ExitOnError)
+	id := fs.String("id", "", "Id")
+	type_ := fs.String("type", "", "Tipo")
+	fs_ := fs.String("fs", "2fs", "Fs")
+
+	// Parse the input string, not os.Args
+	matches := re.FindAllStringSubmatch(input, -1)
+
+	for _, match := range matches {
+		flagName := match[1]
+		flagValue := match[2]
+
+		flagValue = strings.Trim(flagValue, "\"")
+
+		switch flagName {
+		case "id", "type", "fs":
+			fs.Set(flagName, flagValue)
+		default:
+			fmt.Println("Error: Flag not found")
+		}
+	}
+
+	// Verifica que se hayan establecido todas las flags necesarias
+	if *id == "" {
+		fmt.Println("Error: id es un parámetro obligatorio.")
+		return
+	}
+
+	if *type_ == "" {
+		fmt.Println("Error: type es un parámetro obligatorio.")
+		return
+	}
+
+	// Llamar a la función
+	FileSystem.Mkfs(*id, *type_, *fs_)
+}
+
+func fn_rmdisk(params string) {
+	// Definir flag
+	fs := flag.NewFlagSet("rmdisk", flag.ExitOnError)
+	path := fs.String("path", "", "Ruta del disco a eliminar")
+
+	// Parse flag
+	fs.Parse(os.Args[1:])
+
+	// Extraemos y asignamos los valores
+	matches := re.FindAllStringSubmatch(params, -1)
+
+	// Procesa los parámetros
+	for _, match := range matches {
+		flagName := match[1]                   // Captura y guarda el nombre del flag (en este caso, "path")
+		flagValue := strings.ToLower(match[2]) // Captura y guarda el valor del flag, asegurándose de que esté en minúsculas
+
+		flagValue = strings.Trim(flagValue, "\"")
+
+		switch flagName {
+		case "path":
+			fs.Set(flagName, flagValue)
+		default:
+			fmt.Println("Error: Flag no encontrado")
+		}
+	}
+
+	// Validaciones
+	if *path == "" {
+		fmt.Println("Error: Path es requerido")
+		return
+	}
+
+	// Llamamos a la función para eliminar el disco
+	err := os.Remove(*path)
+	if err != nil {
+		fmt.Printf("Error: No se pudo eliminar el disco en la ruta %s: %v\n", *path, err)
+		return
+	}
+
+	fmt.Printf("Disco en la ruta %s eliminado correctamente.\n", *path)
 }
