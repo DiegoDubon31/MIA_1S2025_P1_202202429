@@ -1,0 +1,37 @@
+#!/bin/bash
+
+echo "========================= Creando discos ========================="
+
+MKDISK -size=10 -unit=M -fit=FF -path=/home/diegodubon/disk1.mia
+MKDISK -size=10 -unit=M -fit=WF -path=/home/diegodubon/disk2.mia
+MKDISK -size=10 -unit=M -fit=BF -path=/home/diegodubon/disk3.mia
+
+echo "========================= Creando particiones en disk1.mia ========================="
+
+FDISK -size=3 -unit=M -path=/home/diegodubon/disk1.mia -name=Part1 -type=P -fit=WF
+FDISK -size=3 -unit=M -path=/home/diegodubon/disk1.mia -name=Part2 -type=P -fit=FF
+FDISK -size=4 -unit=M -path=/home/diegodubon/disk1.mia -name=Part3 -type=P -fit=BF
+
+echo "========================= Creando particiones en disk2.mia ========================="
+
+FDISK -size=5 -unit=M -path=/home/diegodubon/disk2.mia -name=Part1 -type=P -fit=WF
+FDISK -size=5 -unit=M -path=/home/diegodubon/disk2.mia -name=Part2 -type=P -fit=FF
+
+echo "========================= Creando particiones en disk3.mia ========================="
+
+FDISK -size=6 -unit=M -path=/home/diegodubon/disk3.mia -name=Part1 -type=P -fit=WF
+FDISK -size=3 -unit=M -path=/home/diegodubon/disk3.mia -name=Part2 -type=P -fit=FF
+
+echo "========================= Montando particiones ========================="
+
+MOUNT -path=/home/diegodubon/disk1.mia -name=Part1
+MOUNT -path=/home/diegodubon/disk1.mia -name=Part2
+MOUNT -path=/home/diegodubon/disk1.mia -name=Part3
+MOUNT -path=/home/diegodubon/disk2.mia -name=Part1
+MOUNT -path=/home/diegodubon/disk2.mia -name=Part2
+MOUNT -path=/home/diegodubon/disk3.mia -name=Part1
+MOUNT -path=/home/diegodubon/disk3.mia -name=Part2
+
+echo "========================= Listando particiones montadas ========================="
+
+MOUNTED

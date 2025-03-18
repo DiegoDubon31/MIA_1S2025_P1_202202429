@@ -1,8 +1,8 @@
 package main
 
-import "backend/analyzer"
+import "MIA_Proyecto1/backend/Analyzer"
 
 
 func main() {
-	analyzer.Analyze()
+	Analyzer.Analyze()
 }

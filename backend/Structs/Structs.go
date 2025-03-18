@@ -1,4 +1,4 @@
-package structs
+package Structs
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ type MRB struct {
 	MbrSize      int32    // 4 bytes //int32 va desde -2,147,483,648 hasta 2,147,483,647.
 	CreationDate [10]byte // 10 bytes
 	Signature    int32    // 4 bytes
-	Fit          [1]byte  // 1 byte
+	Fit          [2]byte  // 2 byte 'wf', 'bf', 'ff'
 	Partitions   [4]Partition
 }
 
@@ -31,13 +31,7 @@ type Partition struct {
 }
 
 func PrintPartition(data Partition) {
-	fmt.Println(
-		//Usa fmt.Sprintf para formatear la información de la partición en un solo string.
-		fmt.Sprintf("Name: %s, type: %s, start: %d, size: %d, status: %s, id: %s",
-			//string(data.Name[:]) convierte el array de bytes [16]byte a una cadena de texto.
-			string(data.Name[:]), string(data.Type[:]), data.Start, data.Size,
-			//data.Start y data.Size se imprimen como enteros (int32).
-			string(data.Status[:]), string(data.Id[:])))
+	fmt.Println(fmt.Sprintf("Name: %s, type: %s, start: %d, size: %d, status: %s, id: %s", string(data.Name[:]), string(data.Type[:]), data.Start, data.Size, string(data.Status[:]), string(data.Id[:])))
 }
 
 type EBR struct {
@@ -58,6 +52,8 @@ func PrintEBR(data EBR) {
 		data.PartNext,
 		data.PartMount))
 }
+
+//Estructuras relacionadas a EXT2
 
 type Superblock struct {
 	S_filesystem_type   int32    // Guarda el número que identifica el sistema de archivos utilizado
