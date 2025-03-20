@@ -422,11 +422,20 @@ func Mount(path string, name string) {
 			letter = mountedPartitions[diskID][0].ID[len(mountedPartitions[diskID][0].ID)-1] // Usa la misma letra del disco
 		}
 	}
-
+	
 	// 🔹 Generar ID basado en carnet y número de partición
 	carnet := "202202429"                   // Cambia por tu carnet real
 	lastTwoDigits := carnet[len(carnet)-2:] // Últimos 2 dígitos
 	partitionID := fmt.Sprintf("%s%d%c", lastTwoDigits, partitionIndex+1, letter)
+
+	// Actualizar el estado de la partición a "montada" y asignar el ID generado a la partición.
+	// `partition.Status[0]` se establece en '1' para indicar que la partición está montada.
+	// `copy(partition.Id[:], partitionID)` asigna el ID generado a la partición.
+	partition.Status[0] = '1'
+	copy(partition.Id[:], partitionID)
+
+	// Actualizamos el `TempMBR.Partitions[partitionIndex]` para reflejar los cambios en la partición.
+	TempMBR.Partitions[partitionIndex] = partition
 
 	// 🔹 Guardar en memoria
 	mountedPartitions[diskID] = append(mountedPartitions[diskID], MountedPartition{
@@ -436,10 +445,17 @@ func Mount(path string, name string) {
 		Status: '1',
 	})
 
+	// Escribir el MBR actualizado en el archivo utilizando la función `Utilities.WriteObject`.
+	// Si la escritura falla, se imprime un mensaje de error.
+	if err := Utilities.WriteObject(file, TempMBR, 0); err != nil {
+		fmt.Println("Error: No se pudo sobrescribir el MBR en el archivo")
+		return
+	}
 	// 🔹 Mensajes de confirmación
 	fmt.Printf("Partición montada con ID: %s\n", partitionID)
 	fmt.Println("MBR actualizado:")
 	Structs.PrintMBR(TempMBR)
+	fmt.Println("")
 	PrintMountedPartitions()
 }
 

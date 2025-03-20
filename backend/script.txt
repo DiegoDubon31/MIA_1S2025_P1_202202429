@@ -35,3 +35,21 @@ MOUNT -path=/home/diegodubon/disk3.mia -name=Part2
 echo "========================= Listando particiones montadas ========================="
 
 MOUNTED
+
+MKDISK -size=10 -unit=M -fit=FF -path=/home/diegodubon/disk1.mia
+MKDISK -size=10 -unit=M -fit=FF -path=/home/diegodubon/disk2.mia
+
+FDISK -size=3 -unit=M -path=/home/diegodubon/disk1.mia -name=Part1 -type=P -fit=WF
+FDISK -size=3 -unit=M -path=/home/diegodubon/disk1.mia -name=Part2 -type=P -fit=BF
+
+FDISK -size=5 -unit=M -path=/home/diegodubon/disk2.mia -name=Part1 -type=P -fit=WF
+
+MOUNT -path=/home/diegodubon/disk1.mia -name=Part1
+MOUNT -path=/home/diegodubon/disk1.mia -name=Part2
+MOUNT -path=/home/diegodubon/disk2.mia -name=Part1
+
+MOUNTED
+
+MKFS -id=291A -type=full -fs=2fs
+MKFS -id=292A -type=full -fs=2fs
+MKFS -id=291B -type=full -fs=2fs

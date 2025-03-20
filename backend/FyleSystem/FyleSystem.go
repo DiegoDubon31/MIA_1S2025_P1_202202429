@@ -1,13 +1,14 @@
 package FileSystem
 
 import (
-	"MIA_Proyecto1/backend/Utilities"
-	"MIA_Proyecto1/backend/Structs"
 	"MIA_Proyecto1/backend/Management"
+	"MIA_Proyecto1/backend/Structs"
+	"MIA_Proyecto1/backend/Utilities"
 	"encoding/binary"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 func Mkfs(id string, type_ string, fs_ string) {
@@ -82,15 +83,20 @@ func Mkfs(id string, type_ string, fs_ string) {
 
 	// Calcular el número de inodos basado en el tamaño de la partición
 	numerador := int32(TempMBR.Partitions[index].Size - int32(binary.Size(Structs.Superblock{})))
+	fmt.Println("Partitions size: ", int(TempMBR.Partitions[index].Size), "Superblock size: ", int32(binary.Size(Structs.Superblock{})))
+	fmt.Println("Numerador:", numerador)
 	denominador_base := int32(4 + int32(binary.Size(Structs.Inode{})) + 3*int32(binary.Size(Structs.Fileblock{})))
-	var temp int32 = 0
+	fmt.Println("Inode size: ", int32(binary.Size(Structs.Inode{})), "Fileblock size: ", int32(binary.Size(Structs.Fileblock{})))
+	fmt.Println("Denominador:", denominador_base)
+	//Solo se trabajará el ext2
+	/*var temp int32 = 0
 	if fs_ == "2fs" {
 		temp = 0
 	} else {
 		fmt.Print("Error por el momento solo está disponible 2FS.")
 	}
-	denominador := denominador_base + temp
-	n := int32(numerador / denominador)
+	denominador := denominador_base + temp*/
+	n := int32(numerador / denominador_base)
 
 	fmt.Println("INODOS:", n)
 
@@ -101,8 +107,9 @@ func Mkfs(id string, type_ string, fs_ string) {
 	newSuperblock.S_blocks_count = 3 * n
 	newSuperblock.S_free_blocks_count = 3*n - 2
 	newSuperblock.S_free_inodes_count = n - 2
-	copy(newSuperblock.S_mtime[:], "25/02/2025")
-	copy(newSuperblock.S_umtime[:], "25/02/2025")
+	now := time.Now().Format("2006-01-02")
+	copy(newSuperblock.S_mtime[:], now)
+	copy(newSuperblock.S_umtime[:], "")
 	newSuperblock.S_mnt_count = 1
 	newSuperblock.S_magic = 0xEF53
 	newSuperblock.S_inode_size = int32(binary.Size(Structs.Inode{}))
@@ -116,7 +123,7 @@ func Mkfs(id string, type_ string, fs_ string) {
 
 	// Si el sistema de archivos es 2FS, se crea un sistema de archivos EXT2
 	if fs_ == "2fs" {
-		create_ext2(n, TempMBR.Partitions[index], newSuperblock, "25/02/2025", file)
+		create_ext2(n, TempMBR.Partitions[index], newSuperblock, now, file)
 	} else {
 		fmt.Println("EXT3 no está soportado.")
 	}
@@ -185,7 +192,7 @@ func create_ext2(n int32, partition Structs.Partition, newSuperblock Structs.Sup
 			fmt.Println("Error al leer inodo: ", err)
 			return
 		}
-		Structs.PrintInode(inode)
+		//Structs.PrintInode(inode)
 	}
 
 	// Leer e imprimir los Folderblocks y Fileblocks
@@ -199,7 +206,7 @@ func create_ext2(n int32, partition Structs.Partition, newSuperblock Structs.Sup
 			fmt.Println("Error al leer Folderblock: ", err)
 			return
 		}
-		Structs.PrintFolderblock(folderblock)
+		//Structs.PrintFolderblock(folderblock)
 	}
 
 	// Imprimir Fileblocks
@@ -210,7 +217,7 @@ func create_ext2(n int32, partition Structs.Partition, newSuperblock Structs.Sup
 			fmt.Println("Error al leer Fileblock: ", err)
 			return
 		}
-		Structs.PrintFileblock(fileblock)
+		//Structs.PrintFileblock(fileblock)
 	}
 
 	// Imprimir el Superblock final
