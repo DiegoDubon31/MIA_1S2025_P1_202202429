@@ -17,6 +17,7 @@ type MountedPartition struct {
 	Name   string
 	ID     string
 	Status byte // 0: no montada, 1: montada
+	LoggedIn bool // true: usuario ha iniciado sesión, false: no ha iniciado sesión
 }
 
 // Mapa para almacenar las particiones montadas, organizadas por disco
@@ -39,6 +40,23 @@ func PrintMountedPartitions() {
 		}
 	}
 	fmt.Println("")
+}
+
+// MarkPartitionAsLoggedIn busca una partición por su ID y la marca como logueada (LoggedIn = true).
+func MarkPartitionAsLoggedIn(id string) {
+	// Recorre todas las particiones montadas en los discos.
+	for diskID, partitions := range mountedPartitions {
+		for i, partition := range partitions {
+			// Si la partición coincide con el ID buscado, se marca como logueada.
+			if partition.ID == id {
+				mountedPartitions[diskID][i].LoggedIn = true
+				fmt.Printf("Partición con ID %s marcada como logueada.\n", id)
+				return
+			}
+		}
+	}
+	// Si no se encuentra la partición, se muestra un mensaje de error.
+	fmt.Printf("No se encontró la partición con ID %s para marcarla como logueada.\n", id)
 }
 
 func Mounted() {
@@ -478,14 +496,7 @@ func getNextLetter() byte {
 
 
 
-// Función para obtener el ID del último disco montado
-func getLastDiskID() string {
-	var lastDiskID string
-	for diskID := range mountedPartitions {
-		lastDiskID = diskID
-	}
-	return lastDiskID
-}
+
 
 func generateDiskID(path string) string {
 	return strings.ToLower(path)

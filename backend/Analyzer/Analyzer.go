@@ -1,8 +1,9 @@
 package Analyzer
 
 import (
-	"MIA_Proyecto1/backend/Management"
 	"MIA_Proyecto1/backend/FyleSystem"
+	"MIA_Proyecto1/backend/Management"
+	"MIA_Proyecto1/backend/User"
 	"bufio"   //Para leer la entrada del usuario
 	"flag"    //Para manejar parametros y opciones de comandos
 	"fmt"     //imprimir
@@ -69,6 +70,8 @@ func AnalyzeCommnad(command string, params string) {
 		fn_mkfs(params)
 	} else if strings.Contains(command, "rmdisk") {
 		fn_rmdisk(params)
+	} else if strings.Contains(command, "login") {
+		fn_login(params)
 	} else if strings.Contains(command, "salir") {
 		fmt.Println("Saliendo del programa...")
 		os.Exit(0) // Termina la ejecución del programa
@@ -317,4 +320,35 @@ func fn_mkfs(input string) {
 
 	// Llamar a la función
 	FileSystem.Mkfs(*id, *type_, *fs_)
+}
+
+func fn_login(input string) {
+	// Definir las flags
+	fs := flag.NewFlagSet("login", flag.ExitOnError)
+	user := fs.String("user", "", "Usuario")
+	pass := fs.String("pass", "", "Contraseña")
+	id := fs.String("id", "", "Id")
+
+	// Parsearlas
+	fs.Parse(os.Args[1:])
+
+	// Match de flags en el input
+	matches := re.FindAllStringSubmatch(input, -1)
+
+	// Procesar el input
+	for _, match := range matches {
+		flagName := match[1]
+		flagValue := match[2]
+
+		flagValue = strings.Trim(flagValue, "\"")
+
+		switch flagName {
+		case "user", "pass", "id":
+			fs.Set(flagName, flagValue)
+		default:
+			fmt.Println("Error: Flag not found")
+		}
+	}
+
+	User.Login(*user, *pass, *id)
 }
