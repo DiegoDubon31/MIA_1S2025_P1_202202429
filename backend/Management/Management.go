@@ -59,6 +59,22 @@ func MarkPartitionAsLoggedIn(id string) {
 	fmt.Printf("No se encontró la partición con ID %s para marcarla como logueada.\n", id)
 }
 
+func MarkPartitionAsLoggedOut(id string) {
+	// Recorre todas las particiones montadas en los discos.
+	for diskID, partitions := range mountedPartitions {
+		for i, partition := range partitions {
+			// Si la partición coincide con el ID buscado, se marca como logueada.
+			if partition.ID == id {
+				mountedPartitions[diskID][i].LoggedIn = false
+				fmt.Printf("Partición con ID %s marcada como logout.\n", id)
+				return
+			}
+		}
+	}
+	// Si no se encuentra la partición, se muestra un mensaje de error.
+	fmt.Printf("No se encontró la partición con ID %s para marcarla como logueada.\n", id)
+}
+
 func Mounted() {
 	if len(mountedPartitions) == 0 {
 		fmt.Println("No hay particiones montadas en el sistema.")

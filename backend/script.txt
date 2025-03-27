@@ -53,3 +53,7 @@ MOUNTED
 MKFS -id=291A -type=full -fs=2fs
 MKFS -id=292A -type=full -fs=2fs
 MKFS -id=291B -type=full -fs=2fs
+
+login -user=root -pass=123 -id=291A 
+
+mkgrp -name=usuarios

@@ -1,7 +1,7 @@
 package Analyzer
 
 import (
-	"MIA_Proyecto1/backend/FyleSystem"
+	FileSystem "MIA_Proyecto1/backend/FyleSystem"
 	"MIA_Proyecto1/backend/Management"
 	"MIA_Proyecto1/backend/User"
 	"bufio"   //Para leer la entrada del usuario
@@ -72,6 +72,10 @@ func AnalyzeCommnad(command string, params string) {
 		fn_rmdisk(params)
 	} else if strings.Contains(command, "login") {
 		fn_login(params)
+	} else if strings.Contains(command, "logout") {
+		User.Logout()
+	} else if strings.Contains(command, "mkgrp") {
+		fn_mkgrp(params)
 	} else if strings.Contains(command, "salir") {
 		fmt.Println("Saliendo del programa...")
 		os.Exit(0) // Termina la ejecución del programa
@@ -283,7 +287,6 @@ func fn_mount(params string) {
 	Management.Mount(*path, lowercaseName)
 }
 
-
 func fn_mkfs(input string) {
 	fs := flag.NewFlagSet("mkfs", flag.ExitOnError)
 	id := fs.String("id", "", "Id")
@@ -349,6 +352,46 @@ func fn_login(input string) {
 			fmt.Println("Error: Flag not found")
 		}
 	}
-
+	if *user == "" {
+		fmt.Println("Error: El parámetro -user es obligatorio")
+		return
+	}
+	if *pass == "" {
+		fmt.Println("Error: El parámetro -pass es obligatorio")
+		return
+	}
+	if *id == "" {
+		fmt.Println("Error: El parámetro -id es obligatorio")
+		return
+	}
 	User.Login(*user, *pass, *id)
+}
+
+func fn_mkgrp(params string) {
+	fs := flag.NewFlagSet("mkgrp", flag.ExitOnError)
+	name := fs.String("name", "", "Nombre del grupo")
+
+	fs.Parse(os.Args[1:])
+	matches := re.FindAllStringSubmatch(params, -1)
+
+	for _, match := range matches {
+		flagName := match[1]
+		flagValue := strings.Trim(match[2], "\"") // Quitar comillas
+
+		switch flagName {
+		case "name":
+			fs.Set(flagName, flagValue)
+		default:
+			fmt.Println("Error: Flag no reconocida")
+			return
+		}
+	}
+
+	if *name == "" {
+		fmt.Println("Error: El parámetro -name es obligatorio")
+		return
+	}
+
+	
+	User.MKGRP(*name)
 }
