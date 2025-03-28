@@ -1,7 +1,7 @@
 package Analyzer
 
 import (
-	FileSystem "MIA_Proyecto1/backend/FyleSystem"
+	"MIA_Proyecto1/backend/FileSystem"
 	"MIA_Proyecto1/backend/Management"
 	"MIA_Proyecto1/backend/User"
 	"bufio"   //Para leer la entrada del usuario

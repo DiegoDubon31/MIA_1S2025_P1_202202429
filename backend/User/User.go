@@ -6,6 +6,7 @@ import (
 	"MIA_Proyecto1/backend/Utilities"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -274,29 +275,29 @@ func GetInodeFileData(Inode Structs.Inode, file *os.File, tempSuperblock Structs
 }
 
 // MKGRP
-func MKGRP(name string) {
+func MKGRP(name string) error{
 	fmt.Println("======Start MKGRP======")
 	fmt.Println("Group name:", name)
 
 	// Verificar si el usuario root ya está logueado
 	if ActiveSession.User != "root" {
-		fmt.Println("Error: Solo el usuario root puede crear grupos")
-		return
+		
+		return fmt.Errorf("error: Solo el usuario root puede crear grupos")
 	}
 
 	// Abrir el archivo del sistema de archivos binario
 	file, err := Utilities.OpenFile(ActiveSession.PartitionPath)
 	if err != nil {
-		fmt.Println("Error: No se pudo abrir el archivo:", err)
-		return
+		
+		return fmt.Errorf("error: No se pudo abrir el archivo: %v", err)
 	}
 	defer file.Close() // Cierra el archivo al final de la ejecución
 
 	var TempMBR Structs.MRB
 	// Leer el MBR (Master Boot Record) del archivo binario
 	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
-		fmt.Println("Error: No se pudo leer el MBR:", err)
-		return
+		
+		return fmt.Errorf("error: No se pudo leer el MBR: %v", err)
 	}
 
 	// Imprimir información del MBR
@@ -310,11 +311,11 @@ func MKGRP(name string) {
 			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), ActiveSession.ID) { // Compara el ID
 				fmt.Println("Partition found")
 				if TempMBR.Partitions[i].Status[0] == '1' { // Verifica si está montada
-					fmt.Println("Partition is mounted")
+					fmt.Println("partition is mounted")
 					index = i
 				} else {
-					fmt.Println("Partition is not mounted")
-					return
+					return fmt.Errorf("partition is not mounted")
+					
 				}
 				break
 			}
@@ -325,32 +326,40 @@ func MKGRP(name string) {
 	if index != -1 {
 		Structs.PrintPartition(TempMBR.Partitions[index])
 	} else {
-		fmt.Println("Partition not found")
-		return
+		return fmt.Errorf("partition not found")
+		
 	}
 
 	var tempSuperblock Structs.Superblock
 	// Leer el Superblock de la partición
 	if err := Utilities.ReadObject(file, &tempSuperblock, int64(TempMBR.Partitions[index].Start)); err != nil {
-		fmt.Println("Error: No se pudo leer el Superblock:", err)
-		return
+		return fmt.Errorf("error: No se pudo leer el Superblock: %v", err)
+		
 	}
 
 	// Buscar el archivo de usuarios "/users.txt" dentro del sistema de archivos
 	indexInode := InitSearch("/users.txt", file, tempSuperblock)
-
+	if indexInode == -1 {
+		return fmt.Errorf("users.txt no encontrado")
+		 
+		
+	}
 	var crrInode Structs.Inode
 	// Leer el Inodo del archivo "users.txt"
 	if err := Utilities.ReadObject(file, &crrInode, int64(tempSuperblock.S_inode_start+indexInode*int32(binary.Size(Structs.Inode{})))); err != nil {
-		fmt.Println("Error: No se pudo leer el Inodo:", err)
-		return
+		return fmt.Errorf("error: No se pudo leer el Inodo: %v", err)
+		
 	}
 
 	// Obtener el contenido del archivo users.txt desde los bloques del inodo
 	data := GetInodeFileData(crrInode, file, tempSuperblock)
+	cleanData := GetCleanedData(data)
+
+	// Imprimir el tamaño de los datos limpios
+	fmt.Printf("Tamaño actual de los datos limpios en users.txt: %d bytes\n", len(cleanData))
 
 	// Dividir el contenido del archivo en líneas
-	lines := strings.Split(data, "\n")
+	lines := strings.Split(cleanData, "\n")
 	var indexGroup string
 	// Iterar a través de las líneas para verificar las credenciales
 	for _, line := range lines {
@@ -359,74 +368,111 @@ func MKGRP(name string) {
 		// Si la línea tiene 3 elementos, obtener el indice del ultimo grupo
 		if len(words) == 3 && words[1] == "G" {
 			if words[2] == name {
-				fmt.Println("Error: El grupo ya existe")
-				return
+				return fmt.Errorf("error: El grupo ya existe")
+				
 			}
 			indexGroup = words[0]
 		}
 	}
 	newIndex, err := strconv.Atoi(indexGroup) 
 	if err != nil {
-		fmt.Println("Error convirtiendo índice:", err)
-		return
+		return fmt.Errorf("error convirtiendo índice: %v", err)
+		
 	}
 	newIndex++
-	newData := strconv.Itoa(newIndex) + ",G," + name + "\n"
-	fmt.Println("New group:", newData)
-	// Escribir el nuevo grupo en el archivo users.txt
+	newGroup := strconv.Itoa(newIndex) + ",G," + name + "\n"
+	fmt.Println("New group:", newGroup)
+	newData := cleanData + newGroup
+	fmt.Println("Complete data:")
+	fmt.Println(newData)
+	
+	// Guardar el contenido usando la función que maneja múltiples bloques
 	if err := AppendToFileBlock(&crrInode, newData, file, tempSuperblock); err != nil {
-		fmt.Println("Error al escribir en users.txt:", err)
-		return
+		return fmt.Errorf("error al escribir en users.txt: %v", err)
 	}
-	fmt.Println("Grupo creado exitosamente.")
-	fmt.Println("Inode", crrInode.I_block)
-	fmt.Println("====== Contenido en estructura ======")
 
-	for i, block := range crrInode.I_block {
-		if block != -1 {
-			var fileBlock Structs.Fileblock
-			offset := int64(tempSuperblock.S_block_start + block*int32(binary.Size(Structs.Fileblock{})))
-			if err := Utilities.ReadObject(file, &fileBlock, offset); err != nil {
-				fmt.Println("Error al leer el bloque:", err)
-				continue
-			}
-
-			fmt.Printf("Bloque #%d (posición %d):\n", i, block)
-			fmt.Printf("Contenido raw: %q\n", fileBlock.B_content)
-			fmt.Printf("Contenido como texto:\n%s\n", string(fileBlock.B_content[:]))
-		}
+	/*
+	// Verificar si el nuevo contenido cabe en el bloque
+	if len(newData) > 64 {
+		fmt.Println("Advertencia: El contenido excede el tamaño del bloque, se truncará el contenido")
+		newData = newData[:64] // Truncar el contenido a 64 bytes
 	}
+
+	// Guardar los datos actualizados de nuevo en el bloque de archivo correspondiente
+	var fileBlock Structs.Fileblock
+	copy(fileBlock.B_content[:], newData)
+
+	// Escribir el bloque actualizado de vuelta en el archivo
+	if err := Utilities.WriteObject(file, fileBlock, int64(tempSuperblock.S_block_start+crrInode.I_block[0]*int32(binary.Size(Structs.Fileblock{})))); err != nil {
+		return fmt.Errorf("error al escribir en users.txt: %v", err)
+		 
+	}
+	
+	// Verificar el contenido del bloque después de la escritura
+	fmt.Println("====== Verificación del bloque de archivo ======")
+	var updatedFileBlock Structs.Fileblock
+	if err := Utilities.ReadObject(file, &updatedFileBlock, int64(tempSuperblock.S_block_start+crrInode.I_block[0]*int32(binary.Size(Structs.Fileblock{})))); err != nil {
+		return fmt.Errorf("error al leer el bloque actualizado: %v", err)
+		 
+	}
+	Structs.PrintFileblock(updatedFileBlock) // Imprimir el bloque de archivo actualizado*/
+
+	fmt.Println("Grupo creado con éxito:", newGroup)
+	
 	fmt.Println("======End MKGRP======")
+	return nil
 }
 
 // MKUSER
+func GetCleanedData(data string) string {
+	cleanedData := strings.TrimRight(data, "\x00") // Eliminar bytes nulos del final
+	return cleanedData
+}
+
 func AppendToFileBlock(inode *Structs.Inode, newData string, file *os.File, superblock Structs.Superblock) error {
-	// Leer el contenido existente del archivo utilizando la función GetInodeFileData
-	existingData := GetInodeFileData(*inode, file, superblock)
+	
+	// Convertir a bytes
+	dataBytes := []byte(newData)
+	blockSize := binary.Size(Structs.Fileblock{})
+	totalBlocks := int(math.Ceil(float64(len(dataBytes)) / float64(blockSize)))
 
-	// Concatenar el nuevo contenido
-	fullData := existingData + newData
-	fmt.Println("Contenido final a guardar:")
-	fmt.Println(fullData)
-
-	// Asegurarse de que el contenido no exceda el tamaño del bloque
-	if len(fullData) > len(inode.I_block)*binary.Size(Structs.Fileblock{}) {
-		// Si el contenido excede, necesitas manejar bloques adicionales
-		return fmt.Errorf("el tamaño del archivo excede la capacidad del bloque actual y no se ha implementado la creación de bloques adicionales")
+	if totalBlocks > len(inode.I_block) {
+		return fmt.Errorf("el archivo excede la capacidad de bloques del inodo")
 	}
 
-	// Escribir el contenido actualizado en el bloque existente
-	var updatedFileBlock Structs.Fileblock
-	copy(updatedFileBlock.B_content[:], fullData)
-	if err := Utilities.WriteObject(file, updatedFileBlock, int64(superblock.S_block_start+inode.I_block[0]*int32(binary.Size(Structs.Fileblock{})))); err != nil {
-		return fmt.Errorf("error al escribir el bloque actualizado: %v", err)
+	// Escribir cada bloque por separado
+	for i := 0; i < totalBlocks; i++ {
+		start := i * blockSize
+		end := start + blockSize
+		if end > len(dataBytes) {
+			end = len(dataBytes)
+		}
+		chunk := dataBytes[start:end]
+
+		// Preparar bloque de archivo
+		var block Structs.Fileblock
+		copy(block.B_content[:], chunk)
+
+		// Calcular posición en el disco
+		blockIndex := inode.I_block[i]
+		if blockIndex == -1 {
+			blockIndex = int32(i)
+			inode.I_block[i] = blockIndex // Asignar el bloque si estaba libre
+		}
+		offset := int64(superblock.S_block_start + blockIndex*int32(blockSize))
+
+		// Escribir el bloque en el archivo
+		if err := Utilities.WriteObject(file, block, offset); err != nil {
+			return fmt.Errorf("error al escribir el bloque %d: %v", i, err)
+		}
 	}
 
-	// Actualizar el tamaño del inodo
-	inode.I_size = int32(len(fullData))
-	if err := Utilities.WriteObject(file, *inode, int64(superblock.S_inode_start+inode.I_block[0]*int32(binary.Size(Structs.Inode{})))); err != nil {
+	// Actualizar tamaño del inodo y guardar
+	inode.I_size = int32(len(dataBytes))
+	inodeOffset := int64(superblock.S_inode_start + inode.I_block[0]*int32(binary.Size(Structs.Inode{})))
+	if err := Utilities.WriteObject(file, *inode, inodeOffset); err != nil {
 		return fmt.Errorf("error al actualizar el inodo: %v", err)
 	}
-
+	
 	return nil
 }
