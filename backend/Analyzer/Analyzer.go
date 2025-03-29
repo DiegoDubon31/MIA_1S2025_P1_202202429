@@ -4,22 +4,23 @@ import (
 	"MIA_Proyecto1/backend/FileSystem"
 	"MIA_Proyecto1/backend/Management"
 	"MIA_Proyecto1/backend/User"
-	"bufio"   //Para leer la entrada del usuario
-	"flag"    //Para manejar parametros y opciones de comandos
-	"fmt"     //imprimir
+	"bufio" //Para leer la entrada del usuario
+	"bytes"
+	"flag" //Para manejar parametros y opciones de comandos
+	"fmt"  //imprimir
 	"os"      // para ingre mediante consola
 	"regexp"  //buscar y extraer parametros en la entrada
 	"strings" //manipular cadenas de texto
 )
 
 // ER  mkdisk -size=3000 -unit=K -fit=BF -path=/home/cerezo/Disks/disk1.bin
-var re = regexp.MustCompile(`-(\w+)=("[^"]+"|\S+)`)
 
 //input := "mkdisk -size=3000 -unit=K -fit=BF -path=/home/cerezo/Disks/disk1.bin"
 //mkdisk -size=200 -unit=M -path=C:/Users/Saul/Desktop/DISCO.dk
 /*
 parts[0] es "mkdisk"
 */
+var re = regexp.MustCompile(`-(\w+)=("[^"]+"|\S+)`)
 
 func getCommandAndParams(input string) (string, string) {
 	parts := strings.Fields(input)
@@ -56,6 +57,46 @@ func Analyze() {
 	}
 }
 
+
+func AnalyzeScript(script string) string {
+	var output bytes.Buffer
+
+	// Separar por líneas
+	lines := strings.Split(script, "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Ignorar líneas vacías o comentarios
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		command, params := getCommandAndParams(line)
+		output.WriteString(fmt.Sprintf("Comando: %s - Parametro: %s\n", command, params))
+
+		// Redirigir la salida a un buffer en lugar de imprimir en consola
+		oldOutput := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		AnalyzeCommnad(command, params) // Ejecuta el comando
+
+		w.Close()
+		var buf bytes.Buffer
+		buf.ReadFrom(r)
+		os.Stdout = oldOutput
+
+		// Agregar la salida capturada al resultado
+		output.WriteString(buf.String())
+		output.WriteString("\n")
+	}
+
+	return output.String()
+}
+
+
+
 func AnalyzeCommnad(command string, params string) {
 
 	if strings.Contains(command, "mkdisk") {
@@ -76,6 +117,8 @@ func AnalyzeCommnad(command string, params string) {
 		User.Logout()
 	} else if strings.Contains(command, "mkgrp") {
 		fn_mkgrp(params)
+	} else if strings.Contains(command, "rmgrp") {
+		fn_rmgrp(params)
 	} else if strings.Contains(command, "salir") {
 		fmt.Println("Saliendo del programa...")
 		os.Exit(0) // Termina la ejecución del programa
@@ -395,3 +438,33 @@ func fn_mkgrp(params string) {
 	
 	User.MKGRP(*name)
 }
+
+func fn_rmgrp(params string) {
+	fs := flag.NewFlagSet("mkgrp", flag.ExitOnError)
+	name := fs.String("name", "", "Nombre del grupo")
+
+	fs.Parse(os.Args[1:])
+	matches := re.FindAllStringSubmatch(params, -1)
+
+	for _, match := range matches {
+		flagName := match[1]
+		flagValue := strings.Trim(match[2], "\"") // Quitar comillas
+
+		switch flagName {
+		case "name":
+			fs.Set(flagName, flagValue)
+		default:
+			fmt.Println("Error: Flag no reconocida")
+			return
+		}
+	}
+
+	if *name == "" {
+		fmt.Println("Error: El parámetro -name es obligatorio")
+		return
+	}
+
+	
+	User.RMGRP(*name)
+}
+

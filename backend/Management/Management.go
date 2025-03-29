@@ -517,3 +517,4 @@ func getNextLetter() byte {
 func generateDiskID(path string) string {
 	return strings.ToLower(path)
 }
+

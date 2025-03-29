@@ -360,27 +360,27 @@ func MKGRP(name string) error{
 
 	// Dividir el contenido del archivo en líneas
 	lines := strings.Split(cleanData, "\n")
-	var indexGroup string
+	indexGroup := 1
 	// Iterar a través de las líneas para verificar las credenciales
 	for _, line := range lines {
 		words := strings.Split(line, ",")
-
+		
 		// Si la línea tiene 3 elementos, obtener el indice del ultimo grupo
 		if len(words) == 3 && words[1] == "G" {
-			if words[2] == name {
+			indexGroup++
+			if words[2] == name && words[0] != "0" {
 				return fmt.Errorf("error: El grupo ya existe")
-				
+			}else if words[2] == name && words[0] == "0" {
+				return fmt.Errorf("error: El grupo ya existe, pero está eliminado")
 			}
-			indexGroup = words[0]
+			if words[0] == "0" {
+				indexGroup--
+			}
+			
 		}
 	}
-	newIndex, err := strconv.Atoi(indexGroup) 
-	if err != nil {
-		return fmt.Errorf("error convirtiendo índice: %v", err)
-		
-	}
-	newIndex++
-	newGroup := strconv.Itoa(newIndex) + ",G," + name + "\n"
+	newIndex := strconv.Itoa(indexGroup) 
+	newGroup := newIndex+ ",G," + name + "\n"
 	fmt.Println("New group:", newGroup)
 	newData := cleanData + newGroup
 	fmt.Println("Complete data:")
@@ -420,6 +420,130 @@ func MKGRP(name string) error{
 	fmt.Println("Grupo creado con éxito:", newGroup)
 	
 	fmt.Println("======End MKGRP======")
+	return nil
+}
+
+//RMGRP
+func RMGRP(name string) error{
+	fmt.Println("======Start RMGRP======")
+	fmt.Println("Group name:", name)
+
+	// Verificar si el usuario root ya está logueado
+	if ActiveSession.User != "root" {
+		fmt.Println("error: Solo el usuario root puede eliminar grupos")
+		return fmt.Errorf("error: Solo el usuario root puede eliminar grupos")
+	}
+
+	// Abrir el archivo del sistema de archivos binario
+	file, err := Utilities.OpenFile(ActiveSession.PartitionPath)
+	if err != nil {
+		fmt.Println("error: No se pudo abrir el archivo:", err)
+		return fmt.Errorf("error: No se pudo abrir el archivo: %v", err)
+	}
+	defer file.Close() // Cierra el archivo al final de la ejecución
+
+	var TempMBR Structs.MRB
+	// Leer el MBR (Master Boot Record) del archivo binario
+	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
+		fmt.Println("error: No se pudo leer el MBR: ", err)
+		return fmt.Errorf("error: No se pudo leer el MBR: %v", err)
+	}
+
+	// Imprimir información del MBR
+	Structs.PrintMBR(TempMBR)
+	fmt.Println("-------------")
+
+	var index int = -1
+	// Buscar la partición en el MBR por su ID
+	for i := 0; i < 4; i++ {
+		if TempMBR.Partitions[i].Size != 0 { // Verifica que la partición tenga tamaño
+			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), ActiveSession.ID) { // Compara el ID
+				fmt.Println("Partition found")
+				if TempMBR.Partitions[i].Status[0] == '1' { // Verifica si está montada
+					fmt.Println("partition is mounted")
+					index = i
+				} else {
+					fmt.Println("partition is not mounted")
+					return fmt.Errorf("partition is not mounted")
+					
+				}
+				break
+			}
+		}
+	}
+
+	// Si se encontró la partición, imprimir su información
+	if index != -1 {
+		Structs.PrintPartition(TempMBR.Partitions[index])
+	} else {
+		fmt.Println("partition not found")
+		return fmt.Errorf("partition not found")
+		
+	}
+
+	var tempSuperblock Structs.Superblock
+	// Leer el Superblock de la partición
+	if err := Utilities.ReadObject(file, &tempSuperblock, int64(TempMBR.Partitions[index].Start)); err != nil {
+		fmt.Println("error: No se pudo leer el Superblock: ", err)
+		return fmt.Errorf("error: No se pudo leer el Superblock: %v", err)
+	}
+
+	// Buscar el archivo de usuarios "/users.txt" dentro del sistema de archivos
+	indexInode := InitSearch("/users.txt", file, tempSuperblock)
+	if indexInode == -1 {
+		fmt.Println("users.txt no encontrado")
+		return fmt.Errorf("users.txt no encontrado")
+	}
+	var crrInode Structs.Inode
+	// Leer el Inodo del archivo "users.txt"
+	if err := Utilities.ReadObject(file, &crrInode, int64(tempSuperblock.S_inode_start+indexInode*int32(binary.Size(Structs.Inode{})))); err != nil {
+		fmt.Println("error: No se pudo leer el Inodo: ", err)
+		return fmt.Errorf("error: No se pudo leer el Inodo: %v", err)
+	}
+
+	// Obtener el contenido del archivo users.txt desde los bloques del inodo
+	data := GetInodeFileData(crrInode, file, tempSuperblock)
+	cleanData := GetCleanedData(data)
+
+	// Imprimir el tamaño de los datos limpios
+	fmt.Printf("Tamaño actual de los datos limpios en users.txt: %d bytes\n", len(cleanData))
+	fmt.Println("Data antes de eliminar el grupo:", cleanData)
+	// Dividir el contenido del archivo en líneas
+	lines := strings.Split(cleanData, "\n")
+	var modifiedData string
+	// Iterar a través de las líneas para verificar las credenciales
+	for _, line := range lines {
+		words := strings.Split(line, ",")
+		// Si la línea tiene 3 elementos, obtener el indice del ultimo grupo
+		if len(words) == 3 && words[1] == "G" {
+			if words[2] == name && words[0] != "0"{
+				words[0] = "0"
+				modifiedData += "0,G,"+ name + "\n"
+				continue
+			}else if words[2] == name && words[0] == "0"{
+				fmt.Println("error: El grupo ya está eliminado")
+				return fmt.Errorf("error: El grupo ya está eliminado")
+			}else{
+				modifiedData += line+"\n"
+				continue
+			}
+			
+		}
+		modifiedData += line + "\n"
+	}
+	cleanData = GetCleanedData(modifiedData)
+	fmt.Println("Data despues de eliminar el grupo:", cleanData)
+	
+	
+	// Guardar el contenido usando la función que maneja múltiples bloques
+	if err := AppendToFileBlock(&crrInode, cleanData, file, tempSuperblock); err != nil {
+		return fmt.Errorf("error al escribir en users.txt: %v", err)
+	}
+
+
+	fmt.Println("Grupo eliminado con éxito:", name)
+	
+	fmt.Println("======End RMGRP======")
 	return nil
 }
 
