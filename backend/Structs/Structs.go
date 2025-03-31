@@ -2,18 +2,19 @@ package Structs
 
 import (
 	"fmt"
+	"strings"
 )
 
 type MRB struct {
-	MbrSize      int32    // 4 bytes //int32 va desde -2,147,483,648 hasta 2,147,483,647.
-	CreationDate [10]byte // 10 bytes
-	Signature    int32    // 4 bytes
-	Fit          [2]byte  // 2 byte 'wf', 'bf', 'ff'
+	MbrSize      int32
+	CreationDate [10]byte
+	Signature    int32
+	Fit          [2]byte
 	Partitions   [4]Partition
 }
 
 func PrintMBR(data MRB) {
-	fmt.Println(fmt.Sprintf("CreationDate: %s, fit: %s, size: %d", string(data.CreationDate[:]), string(data.Fit[:]), data.MbrSize))
+	fmt.Printf("CreationDate: %s, fit: %s, size: %d\n", strings.TrimRight(string(data.CreationDate[:]), "\x00"), strings.TrimRight(string(data.Fit[:]), "\x00"), data.MbrSize)
 	for i := 0; i < 4; i++ {
 		PrintPartition(data.Partitions[i])
 	}
@@ -31,7 +32,13 @@ type Partition struct {
 }
 
 func PrintPartition(data Partition) {
-	fmt.Println(fmt.Sprintf("Name: %s, type: %s, start: %d, size: %d, status: %s, id: %s", string(data.Name[:]), string(data.Type[:]), data.Start, data.Size, string(data.Status[:]), string(data.Id[:])))
+	fmt.Printf("Name: %s, type: %s, start: %d, size: %d, status: %s, id: %s\n",
+		strings.TrimRight(string(data.Name[:]), "\x00"),
+		strings.TrimRight(string(data.Type[:]), "\x00"),
+		data.Start,
+		data.Size,
+		strings.TrimRight(string(data.Status[:]), "\x00"),
+		strings.TrimRight(string(data.Id[:]), "\x00"))
 }
 
 type EBR struct {
@@ -44,35 +51,33 @@ type EBR struct {
 }
 
 func PrintEBR(data EBR) {
-	fmt.Println(fmt.Sprintf("Name: %s, fit: %c, start: %d, size: %d, next: %d, mount: %c",
-		string(data.PartName[:]),
+	fmt.Printf("Name: %s, fit: %c, start: %d, size: %d, next: %d, mount: %c\n",
+		strings.TrimRight(string(data.PartName[:]), "\x00"),
 		data.PartFit,
 		data.PartStart,
 		data.PartSize,
 		data.PartNext,
-		data.PartMount))
+		data.PartMount)
 }
 
-//Estructuras relacionadas a EXT2
-
 type Superblock struct {
-	S_filesystem_type   int32    // Guarda el número que identifica el sistema de archivos utilizado
-	S_inodes_count      int32    // Guarda el número total de inodos
-	S_blocks_count      int32    // Guarda el número total de bloques
-	S_free_blocks_count int32    // Contiene el número de bloques libres
-	S_free_inodes_count int32    // Contiene el número de inodos libres
-	S_mtime             [17]byte // Última fecha en el que el sistema fue montado
-	S_umtime            [17]byte // Última fecha en que el sistema fue desmontado
-	S_mnt_count         int32    // Indica cuantas veces se ha montado el sistema
-	S_magic             int32    // Valor que identifica al sistema de archivos, tendrá el valor 0xEF53
-	S_inode_size        int32    // Tamaño del inodo
-	S_block_size        int32    // Tamaño del bloque
-	S_fist_ino          int32    // Primer inodo libre (dirección del inodo)
-	S_first_blo         int32    // Primer bloque libre (dirección del inodo)
-	S_bm_inode_start    int32    // Guardará el inicio del bitmap de inodos
-	S_bm_block_start    int32    // Guardará el inicio del bitmap de bloques
-	S_inode_start       int32    // Guardará el inicio de la tabla de inodos
-	S_block_start       int32    // Guardará el inicio de la tabla de bloques
+	S_filesystem_type   int32
+	S_inodes_count      int32
+	S_blocks_count      int32
+	S_free_blocks_count int32
+	S_free_inodes_count int32
+	S_mtime             [17]byte
+	S_umtime            [17]byte
+	S_mnt_count         int32
+	S_magic             int32
+	S_inode_size        int32
+	S_block_size        int32
+	S_fist_ino          int32
+	S_first_blo         int32
+	S_bm_inode_start    int32
+	S_bm_block_start    int32
+	S_inode_start       int32
+	S_block_start       int32
 }
 
 func PrintSuperblock(sb Superblock) {
@@ -82,10 +87,10 @@ func PrintSuperblock(sb Superblock) {
 	fmt.Printf("S_blocks_count: %d\n", sb.S_blocks_count)
 	fmt.Printf("S_free_blocks_count: %d\n", sb.S_free_blocks_count)
 	fmt.Printf("S_free_inodes_count: %d\n", sb.S_free_inodes_count)
-	fmt.Printf("S_mtime: %s\n", string(sb.S_mtime[:]))
-	fmt.Printf("S_umtime: %s\n", string(sb.S_umtime[:]))
+	fmt.Printf("S_mtime: %s\n", strings.TrimRight(string(sb.S_mtime[:]), "\x00"))
+	fmt.Printf("S_umtime: %s\n", strings.TrimRight(string(sb.S_umtime[:]), "\x00"))
 	fmt.Printf("S_mnt_count: %d\n", sb.S_mnt_count)
-	fmt.Printf("S_magic: 0x%X\n", sb.S_magic) // Usamos 0x%X para mostrarlo en formato hexadecimal
+	fmt.Printf("S_magic: 0x%X\n", sb.S_magic)
 	fmt.Printf("S_inode_size: %d\n", sb.S_inode_size)
 	fmt.Printf("S_block_size: %d\n", sb.S_block_size)
 	fmt.Printf("S_fist_ino: %d\n", sb.S_fist_ino)
@@ -114,11 +119,11 @@ func PrintInode(inode Inode) {
 	fmt.Printf("I_uid: %d\n", inode.I_uid)
 	fmt.Printf("I_gid: %d\n", inode.I_gid)
 	fmt.Printf("I_size: %d\n", inode.I_size)
-	fmt.Printf("I_atime: %s\n", string(inode.I_atime[:]))
-	fmt.Printf("I_ctime: %s\n", string(inode.I_ctime[:]))
-	fmt.Printf("I_mtime: %s\n", string(inode.I_mtime[:]))
-	fmt.Printf("I_type: %s\n", string(inode.I_type[:]))
-	fmt.Printf("I_perm: %s\n", string(inode.I_perm[:]))
+	fmt.Printf("I_atime: %s\n", strings.TrimRight(string(inode.I_atime[:]), "\x00"))
+	fmt.Printf("I_ctime: %s\n", strings.TrimRight(string(inode.I_ctime[:]), "\x00"))
+	fmt.Printf("I_mtime: %s\n", strings.TrimRight(string(inode.I_mtime[:]), "\x00"))
+	fmt.Printf("I_type: %s\n", strings.TrimRight(string(inode.I_type[:]), "\x00"))
+	fmt.Printf("I_perm: %s\n", strings.TrimRight(string(inode.I_perm[:]), "\x00"))
 	fmt.Printf("I_block: %v\n", inode.I_block)
 	fmt.Println("===================")
 }
@@ -130,14 +135,14 @@ type Folderblock struct {
 func PrintFolderblock(folderblock Folderblock) {
 	fmt.Println("====== Folderblock ======")
 	for i, content := range folderblock.B_content {
-		fmt.Printf("Content %d: Name: %s, Inodo: %d\n", i, string(content.B_name[:]), content.B_inodo)
+		fmt.Printf("Content %d: Name: %s, Inodo: %d\n", i, strings.TrimRight(string(content.B_name[:]), "\x00"), content.B_inodo)
 	}
 	fmt.Println("=========================")
 }
 
 type Content struct {
-	B_name  [12]byte //Este campo almacena el nombre de un archivo o carpeta
-	B_inodo int32    //Se utiliza un arreglo de bytes ([12]byte) para asegurar que el nombre tenga un tamaño fijo y sea fácil de manejar
+	B_name  [12]byte
+	B_inodo int32
 }
 
 type Fileblock struct {
@@ -146,13 +151,12 @@ type Fileblock struct {
 
 func PrintFileblock(fileblock Fileblock) {
 	fmt.Println("====== Fileblock ======")
-	fmt.Printf("B_content: %s\n", string(fileblock.B_content[:]))
+	fmt.Printf("B_content: %s\n", strings.TrimRight(string(fileblock.B_content[:]), "\x00"))
 	fmt.Println("=======================")
 }
 
 type Pointerblock struct {
-	B_pointers [16]int32 //Este campo es un apuntador al inodo asociado al archivo o carpeta.
-	//Cada apuntador es un int32 (4 bytes), lo que permite direccionar hasta 2^32 bloques
+	B_pointers [16]int32
 }
 
 func PrintPointerblock(pointerblock Pointerblock) {

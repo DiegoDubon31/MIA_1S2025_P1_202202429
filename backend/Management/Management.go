@@ -160,7 +160,7 @@ func Mkdisk(size int, fit string, unit string, path string) {
 		fmt.Println("Error al escribir el MBR:", err)
 		return
 	}
-
+	
 	// Leer el MBR para verificar que se escribió correctamente
 	var tempMBR Structs.MRB
 	if err := Utilities.ReadObject(file, &tempMBR, 0); err != nil {
@@ -170,7 +170,7 @@ func Mkdisk(size int, fit string, unit string, path string) {
 
 	// Imprimir el MBR leído
 	Structs.PrintMBR(tempMBR)
-
+	mountedPartitions= make(map[string][]MountedPartition) // Reiniciar el mapa de particiones montadas
 	fmt.Println("======FIN MKDISK======")
 }
 

@@ -3,8 +3,9 @@ package main
 import (
 	"MIA_Proyecto1/backend/Analyzer"
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
+	"time"
 )
 
 type ScriptRequest struct {
@@ -12,13 +13,21 @@ type ScriptRequest struct {
 }
 
 func main() {
-	http.HandleFunc("/execute", executeHandler)
-
-	fmt.Println("Servidor corriendo en http://localhost:3000")
-	err := http.ListenAndServe(":3000", nil)
-	if err != nil {
-		fmt.Println("Error al iniciar el servidor:", err)
+	//Analyzer.Analyze()
+	mux := http.NewServeMux()
+	fs := http.FileServer(http.Dir("frontend"))
+	mux.Handle("/", fs)
+	mux.HandleFunc("/execute", executeHandler)
+	server := &http.Server{
+		Addr:           ":3000",
+		Handler:        mux,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
 	}
+	log.Println("Servidor corriendo en http://localhost:3000")
+	log.Fatal(server.ListenAndServe())
+
 }
 
 func executeHandler(w http.ResponseWriter, r *http.Request) {

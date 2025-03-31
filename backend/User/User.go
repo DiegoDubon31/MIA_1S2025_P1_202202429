@@ -146,6 +146,7 @@ func Login(user string, pass string, id string) {
 }
 
 func Logout() {
+	fmt.Println("======Start LOGOUT======")
 	if ActiveSession.IsActive {
 		fmt.Println("Sesión cerrada del usuario:", ActiveSession.User)
 		Management.MarkPartitionAsLoggedOut(ActiveSession.ID) // Marca la partición como deslogueada
@@ -153,6 +154,7 @@ func Logout() {
 	} else {
 		fmt.Println("Error: Debe de haber una sesión iniciada para hacer logout.")
 	}
+	fmt.Println("======End LOGOUT======")
 }
 func InitSearch(path string, file *os.File, tempSuperblock Structs.Superblock) int32 {
 	fmt.Println("======Start BUSQUEDA INICIAL ======")
@@ -210,7 +212,7 @@ func SarchInodeByPath(StepsPath []string, Inode Structs.Inode, file *os.File, te
 
 				// Buscar el archivo/directorio dentro del bloque de carpeta
 				for _, folder := range crrFolderBlock.B_content {
-					fmt.Println("Folder === Name:", string(folder.B_name[:]), "B_inodo", folder.B_inodo)
+					fmt.Println("Folder === Name:", strings.TrimRight(string(folder.B_name[:]), "\x00"), "B_inodo", folder.B_inodo)
 
 					// Si el nombre del archivo o directorio coincide
 					if strings.Contains(string(folder.B_name[:]), SearchedName) {
@@ -280,15 +282,18 @@ func MKGRP(name string) error{
 	fmt.Println("Group name:", name)
 
 	// Verificar si el usuario root ya está logueado
-	if ActiveSession.User != "root" {
-		
+	if !ActiveSession.IsActive{
+		fmt.Println("error: No hay ninguna sesión activa. Debe hacer login primero")
+		return fmt.Errorf("error: No hay ninguna sesión activa. Debe hacer login primero")
+	} else if ActiveSession.User != "root" {
+		fmt.Println("error: Solo el usuario root puede crear grupos")
 		return fmt.Errorf("error: Solo el usuario root puede crear grupos")
 	}
 
 	// Abrir el archivo del sistema de archivos binario
 	file, err := Utilities.OpenFile(ActiveSession.PartitionPath)
 	if err != nil {
-		
+		fmt.Println("error: No se pudo abrir el archivo:", err)
 		return fmt.Errorf("error: No se pudo abrir el archivo: %v", err)
 	}
 	defer file.Close() // Cierra el archivo al final de la ejecución
@@ -296,7 +301,7 @@ func MKGRP(name string) error{
 	var TempMBR Structs.MRB
 	// Leer el MBR (Master Boot Record) del archivo binario
 	if err := Utilities.ReadObject(file, &TempMBR, 0); err != nil {
-		
+		fmt.Println("error: No se pudo leer el MBR: ", err)
 		return fmt.Errorf("error: No se pudo leer el MBR: %v", err)
 	}
 
@@ -314,6 +319,7 @@ func MKGRP(name string) error{
 					fmt.Println("partition is mounted")
 					index = i
 				} else {
+					fmt.Println("partition is not mounted")
 					return fmt.Errorf("partition is not mounted")
 					
 				}
@@ -326,6 +332,7 @@ func MKGRP(name string) error{
 	if index != -1 {
 		Structs.PrintPartition(TempMBR.Partitions[index])
 	} else {
+		fmt.Println("partition not found")
 		return fmt.Errorf("partition not found")
 		
 	}
@@ -333,6 +340,7 @@ func MKGRP(name string) error{
 	var tempSuperblock Structs.Superblock
 	// Leer el Superblock de la partición
 	if err := Utilities.ReadObject(file, &tempSuperblock, int64(TempMBR.Partitions[index].Start)); err != nil {
+		fmt.Println("error: No se pudo leer el Superblock: ", err)
 		return fmt.Errorf("error: No se pudo leer el Superblock: %v", err)
 		
 	}
@@ -340,6 +348,7 @@ func MKGRP(name string) error{
 	// Buscar el archivo de usuarios "/users.txt" dentro del sistema de archivos
 	indexInode := InitSearch("/users.txt", file, tempSuperblock)
 	if indexInode == -1 {
+		fmt.Println("users.txt no encontrado")
 		return fmt.Errorf("users.txt no encontrado")
 		 
 		
@@ -347,6 +356,8 @@ func MKGRP(name string) error{
 	var crrInode Structs.Inode
 	// Leer el Inodo del archivo "users.txt"
 	if err := Utilities.ReadObject(file, &crrInode, int64(tempSuperblock.S_inode_start+indexInode*int32(binary.Size(Structs.Inode{})))); err != nil {
+		
+		fmt.Println("error: No se pudo leer el Inodo: ", err)
 		return fmt.Errorf("error: No se pudo leer el Inodo: %v", err)
 		
 	}
@@ -369,8 +380,10 @@ func MKGRP(name string) error{
 		if len(words) == 3 && words[1] == "G" {
 			indexGroup++
 			if words[2] == name && words[0] != "0" {
+				fmt.Println("error: El grupo ya existe")
 				return fmt.Errorf("error: El grupo ya existe")
 			}else if words[2] == name && words[0] == "0" {
+				fmt.Println("error: El grupo ya existe, pero está eliminado")
 				return fmt.Errorf("error: El grupo ya existe, pero está eliminado")
 			}
 			if words[0] == "0" {
@@ -388,6 +401,7 @@ func MKGRP(name string) error{
 	
 	// Guardar el contenido usando la función que maneja múltiples bloques
 	if err := AppendToFileBlock(&crrInode, newData, file, tempSuperblock); err != nil {
+		fmt.Println("error al escribir en users.txt:", err)
 		return fmt.Errorf("error al escribir en users.txt: %v", err)
 	}
 
@@ -429,9 +443,12 @@ func RMGRP(name string) error{
 	fmt.Println("Group name:", name)
 
 	// Verificar si el usuario root ya está logueado
-	if ActiveSession.User != "root" {
-		fmt.Println("error: Solo el usuario root puede eliminar grupos")
-		return fmt.Errorf("error: Solo el usuario root puede eliminar grupos")
+	if !ActiveSession.IsActive{
+		fmt.Println("error: No hay ninguna sesión activa. Debe hacer login primero")
+		return fmt.Errorf("error: No hay ninguna sesión activa. Debe hacer login primero")
+	} else if ActiveSession.User != "root" {
+		fmt.Println("error: Solo el usuario root puede crear grupos")
+		return fmt.Errorf("error: Solo el usuario root puede crear grupos")
 	}
 
 	// Abrir el archivo del sistema de archivos binario
