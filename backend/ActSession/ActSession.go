@@ -1,4 +1,4 @@
-package User
+package ActSession
 
 import "fmt"
 
@@ -31,6 +31,9 @@ func StartSession(user string, group string, id string, path string) {
 	}
 }
 
+func GetSession() Session {
+	return ActiveSession
+}
 func PrintActiveSession() {
 	fmt.Println("======Active Session======")
 	fmt.Println("User:", ActiveSession.User)

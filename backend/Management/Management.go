@@ -1,8 +1,9 @@
 package Management
 
 import (
-	"MIA_Proyecto1/backend/Utilities"
+	"MIA_Proyecto1/backend/ActSession"
 	"MIA_Proyecto1/backend/Structs"
+	"MIA_Proyecto1/backend/Utilities"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -13,10 +14,10 @@ import (
 
 // Estructura para representar una partición montada
 type MountedPartition struct {
-	Path   string
-	Name   string
-	ID     string
-	Status byte // 0: no montada, 1: montada
+	Path     string
+	Name     string
+	ID       string
+	Status   byte // 0: no montada, 1: montada
 	LoggedIn bool // true: usuario ha iniciado sesión, false: no ha iniciado sesión
 }
 
@@ -160,7 +161,7 @@ func Mkdisk(size int, fit string, unit string, path string) {
 		fmt.Println("Error al escribir el MBR:", err)
 		return
 	}
-	
+
 	// Leer el MBR para verificar que se escribió correctamente
 	var tempMBR Structs.MRB
 	if err := Utilities.ReadObject(file, &tempMBR, 0); err != nil {
@@ -170,7 +171,7 @@ func Mkdisk(size int, fit string, unit string, path string) {
 
 	// Imprimir el MBR leído
 	Structs.PrintMBR(tempMBR)
-	mountedPartitions= make(map[string][]MountedPartition) // Reiniciar el mapa de particiones montadas
+	mountedPartitions = make(map[string][]MountedPartition) // Reiniciar el mapa de particiones montadas
 	fmt.Println("======FIN MKDISK======")
 }
 
@@ -388,6 +389,161 @@ func Fdisk(size int, path string, name string, unit string, type_ string, fit st
 
 }
 
+func MkFile(path string, size int, r bool, cont string) {
+	fmt.Println("======Start MKFILE======")
+	fmt.Println("Path:", path)
+	fmt.Println("Size:", size)
+	fmt.Println("r:", r)
+	fmt.Println("Cont:", cont)
+	
+	session := ActSession.GetSession()
+	if !session.IsActive {
+		fmt.Println("Error: No hay ninguna sesión activa. Debe hacer login primero.")
+		return
+	}
+	// Validar tamaño
+	if size <= 0 {
+		fmt.Println("Error: Size must be greater than 0")
+		return
+	}
+
+	// Paso 2: Obtener el archivo binario montado
+	file, err := Utilities.OpenFile(ActSession.ActiveSession.PartitionPath)
+	if err != nil {
+		fmt.Println("error al abrir el archivo: ", err)
+		return 
+	}
+	defer file.Close()
+
+	// Paso 3: Leer MBR
+	var mbr Structs.MRB
+	if err := Utilities.ReadObject(file, &mbr, 0); err != nil {
+		fmt.Println("error al leer el MBR: ", err)
+		return 
+	}
+
+	// Paso 4: Buscar partición activa
+	index := -1
+	for i := 0; i < 4; i++ {
+		if string(mbr.Partitions[i].Id[:]) == ActSession.ActiveSession.ID {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		fmt.Println("Error: No se encontró la partición activa")
+		return 
+	}
+
+	// Paso 5: Leer SuperBlock
+	var sb Structs.Superblock
+	if err := Utilities.ReadObject(file, &sb, int64(mbr.Partitions[index].Start)); err != nil {
+		fmt.Println("error al leer el Superblock: ", err)
+		return 
+	}
+
+	// Paso 6: Crear archivo y directorios
+	err = CreateFile(path, size, cont, r, &sb, file)
+	if err != nil {
+		fmt.Println("Error al crear el archivo:", err)
+		return 
+	}
+	fmt.Println("Archivo creado exitosamente.")
+	fmt.Println("======FIN MKFILE======")
+
+}
+
+func CreateFile(path string, size int, recursive bool, content string, file *os.File, superblock Structs.Superblock) error {
+	fmt.Println("======Start MKFILE======")
+	fmt.Println("Path:", path)
+	fmt.Println("Size:", size)
+	fmt.Println("R:", recursive)
+	fmt.Println("Cont:", content)
+
+	// Dividir la ruta
+	dirs := strings.Split(path, "/")
+	dirs = dirs[1:] // ignorar raíz vacía
+	fileName := dirs[len(dirs)-1]
+	parentDirs := dirs[:len(dirs)-1]
+
+	// Comenzar desde el inodo raíz (índice 0)
+	currentInodeIndex := int32(0)
+
+	for _, dir := range parentDirs {
+		nextInode := SearchInodeInFolder(dir, currentInodeIndex, file, superblock)
+
+		if nextInode == -1 {
+			if recursive {
+				newInode, err := CreateFolder(dir, currentInodeIndex, file, superblock)
+				if err != nil {
+					return fmt.Errorf("error al crear carpeta '%s': %v", dir, err)
+				}
+				currentInodeIndex = newInode
+			} else {
+				return fmt.Errorf("la carpeta '%s' no existe y no se especificó -r", dir)
+			}
+		} else {
+			currentInodeIndex = nextInode
+		}
+	}
+
+	// Verificar si el archivo ya existe
+	if SearchInodeInFolder(fileName, currentInodeIndex, file, superblock) != -1 {
+		return fmt.Errorf("el archivo '%s' ya existe", fileName)
+	}
+
+	// Crear el nuevo inodo
+	newInodeIndex, err := AllocateNewInode(file, &superblock)
+	if err != nil {
+		return fmt.Errorf("error al asignar nuevo inodo: %v", err)
+	}
+	inode := Structs.Inode{
+		I_uid:   1,
+		I_gid:   1,
+		I_size:  int32(size),
+		I_type:  [1]byte{'1'},
+		I_perm:  [3]byte{'6', '6', '4'},
+		I_block: [15]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+	}
+
+	// Dividir contenido en bloques
+	chunks := SplitStringIntoChunks(content, 64)
+	for i, chunk := range chunks {
+		blockIndex, err := AllocateNewBlock(file, &superblock)
+		if err != nil {
+			return fmt.Errorf("error al asignar bloque: %v", err)
+		}
+
+		var block Structs.Fileblock
+		copy(block.B_content[:], chunk)
+		blockOffset := int64(superblock.S_block_start + blockIndex*int32(binary.Size(Structs.Fileblock{})))
+		if err := Utilities.WriteObject(file, block, blockOffset); err != nil {
+			return fmt.Errorf("error escribiendo bloque: %v", err)
+		}
+
+		inode.I_block[i] = blockIndex
+	}
+
+	// Escribir el inodo
+	inodeOffset := int64(superblock.S_inode_start + newInodeIndex*int32(binary.Size(Structs.Inode{})))
+	if err := Utilities.WriteObject(file, inode, inodeOffset); err != nil {
+		return fmt.Errorf("error escribiendo el inodo: %v", err)
+	}
+
+	// Enlazar en carpeta padre
+	if err := AddToFolder(fileName, currentInodeIndex, newInodeIndex, file, superblock); err != nil {
+		return fmt.Errorf("error enlazando archivo en carpeta: %v", err)
+	}
+
+	// Actualizar superbloque
+	if err := Utilities.WriteObject(file, superblock, int64(superblock.S_inode_start - int32(binary.Size(Structs.Superblock{})))); err != nil {
+		return fmt.Errorf("error actualizando superbloque: %v", err)
+	}
+
+	fmt.Println("Archivo creado correctamente")
+	fmt.Println("======End MKFILE======")
+	return nil
+}
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -456,7 +612,7 @@ func Mount(path string, name string) {
 			letter = mountedPartitions[diskID][0].ID[len(mountedPartitions[diskID][0].ID)-1] // Usa la misma letra del disco
 		}
 	}
-	
+
 	// 🔹 Generar ID basado en carnet y número de partición
 	carnet := "202202429"                   // Cambia por tu carnet real
 	lastTwoDigits := carnet[len(carnet)-2:] // Últimos 2 dígitos
@@ -493,7 +649,6 @@ func Mount(path string, name string) {
 	PrintMountedPartitions()
 }
 
-
 // 🔹 Función para obtener la siguiente letra disponible
 func getNextLetter() byte {
 	highestLetter := 'A'
@@ -508,13 +663,6 @@ func getNextLetter() byte {
 	return byte(highestLetter + 1)
 }
 
-
-
-
-
-
-
 func generateDiskID(path string) string {
 	return strings.ToLower(path)
 }
-

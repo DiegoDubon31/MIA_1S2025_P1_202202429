@@ -6,8 +6,8 @@ import (
 	"MIA_Proyecto1/backend/User"
 	"bufio" //Para leer la entrada del usuario
 	"bytes"
-	"flag" //Para manejar parametros y opciones de comandos
-	"fmt"  //imprimir
+	"flag"    //Para manejar parametros y opciones de comandos
+	"fmt"     //imprimir
 	"os"      // para ingre mediante consola
 	"regexp"  //buscar y extraer parametros en la entrada
 	"strings" //manipular cadenas de texto
@@ -20,7 +20,7 @@ import (
 /*
 parts[0] es "mkdisk"
 */
-var re = regexp.MustCompile(`-(\w+)=("[^"]+"|\S+)`)
+var re = regexp.MustCompile(`-(\w+)(?:=("[^"]+"|\S+))?`)
 
 func getCommandAndParams(input string) (string, string) {
 	parts := strings.Fields(input)
@@ -56,7 +56,6 @@ func Analyze() {
 		//mkdisk -size=3000 -unit=K -fit=BF -path="/home/cerezo/Disks/disk1.bin"
 	}
 }
-
 
 func AnalyzeScript(script string) string {
 	var output bytes.Buffer
@@ -95,8 +94,6 @@ func AnalyzeScript(script string) string {
 	return output.String()
 }
 
-
-
 func AnalyzeCommnad(command string, params string) {
 
 	if strings.Contains(command, "mkdisk") {
@@ -109,6 +106,8 @@ func AnalyzeCommnad(command string, params string) {
 		fn_mount(params)
 	} else if strings.Contains(command, "mkfs") {
 		fn_mkfs(params)
+	} else if strings.Contains(command, "mkfile") {
+		fn_mkfile(params)
 	} else if strings.Contains(command, "rmdisk") {
 		fn_rmdisk(params)
 	} else if strings.Contains(command, "login") {
@@ -435,7 +434,6 @@ func fn_mkgrp(params string) {
 		return
 	}
 
-	
 	User.MKGRP(*name)
 }
 
@@ -464,7 +462,54 @@ func fn_rmgrp(params string) {
 		return
 	}
 
-	
 	User.RMGRP(*name)
 }
 
+func fn_mkfile(params string) {
+	// Definir flag
+	fs := flag.NewFlagSet("mkfile", flag.ExitOnError)
+	path := fs.String("path", "", "Ruta")
+	r := fs.Bool("r", false, "Carpetas Padres")
+	size := fs.Int("size", 0, "Tamanio")
+	cont := fs.String("cont", "", "Contenido")
+
+	// Parse flag
+	fs.Parse(os.Args[1:])
+
+	///----------------------------------------------------- extrae y asigna los valores de los parámetros
+	matches := re.FindAllStringSubmatch(params, -1)
+	// Process the input
+	for _, match := range matches {
+		flagName := match[1]                   // match[1]: Captura y guarda el nombre del flag (por ejemplo, "size", "unit", "fit", "path")
+		flagValue := strings.ToLower(match[2]) //trings.ToLower(match[2]): Captura y guarda el valor del flag, asegurándose de que esté en minúsculas
+
+		flagValue = strings.Trim(flagValue, "\"")
+		fmt.Println("flagName: ", flagName)
+		fmt.Println("flagValue: ", flagValue)
+		switch flagName {
+		case "size", "path", "cont":
+			fs.Set(flagName, flagValue)
+		case "r":
+			fs.Set(flagName, "true")
+		default:
+			fmt.Println("Error: Flag not found")
+		}
+	}
+
+	// Validaciones
+	if *size <= 0 {
+		fmt.Println("Error: Size must be greater than 0")
+		return
+	}
+
+	
+
+	
+	if *path == "" {
+		fmt.Println("Error: Path is required")
+		return
+	}
+
+	// LLamamos a la funcion
+	Management.MkFile(*path, *size, *r, *cont)
+}

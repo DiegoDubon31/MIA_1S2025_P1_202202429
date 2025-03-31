@@ -2,6 +2,7 @@ package User
 
 import (
 	"MIA_Proyecto1/backend/Management"
+	"MIA_Proyecto1/backend/ActSession"
 	"MIA_Proyecto1/backend/Structs"
 	"MIA_Proyecto1/backend/Utilities"
 	"encoding/binary"
@@ -137,8 +138,8 @@ func Login(user string, pass string, id string) {
 	if login {
 		fmt.Println("Usuario logueado con éxito")
 		Management.MarkPartitionAsLoggedIn(id)  // Marca la partición como logueada
-		StartSession(user, group, id, filepath) // Inicia la sesión
-		PrintActiveSession()                    // Imprime la sesión activa
+		ActSession.StartSession(user, group, id, filepath) // Inicia la sesión
+		ActSession.PrintActiveSession()                    // Imprime la sesión activa
 	} else {
 		fmt.Println("Error: Credenciales incorrectas")
 	}
@@ -147,10 +148,10 @@ func Login(user string, pass string, id string) {
 
 func Logout() {
 	fmt.Println("======Start LOGOUT======")
-	if ActiveSession.IsActive {
-		fmt.Println("Sesión cerrada del usuario:", ActiveSession.User)
-		Management.MarkPartitionAsLoggedOut(ActiveSession.ID) // Marca la partición como deslogueada
-		ActiveSession = Session{}                             // Reinicia todo
+	if ActSession.ActiveSession.IsActive {
+		fmt.Println("Sesión cerrada del usuario:", ActSession.ActiveSession.User)
+		Management.MarkPartitionAsLoggedOut(ActSession.ActiveSession.ID) // Marca la partición como deslogueada
+		ActSession.ActiveSession = ActSession.Session{}                             // Reinicia todo
 	} else {
 		fmt.Println("Error: Debe de haber una sesión iniciada para hacer logout.")
 	}
@@ -277,21 +278,21 @@ func GetInodeFileData(Inode Structs.Inode, file *os.File, tempSuperblock Structs
 }
 
 // MKGRP
-func MKGRP(name string) error{
+func MKGRP(name string) error {
 	fmt.Println("======Start MKGRP======")
 	fmt.Println("Group name:", name)
 
 	// Verificar si el usuario root ya está logueado
-	if !ActiveSession.IsActive{
+	if !ActSession.ActiveSession.IsActive {
 		fmt.Println("error: No hay ninguna sesión activa. Debe hacer login primero")
 		return fmt.Errorf("error: No hay ninguna sesión activa. Debe hacer login primero")
-	} else if ActiveSession.User != "root" {
+	} else if ActSession.ActiveSession.User != "root" {
 		fmt.Println("error: Solo el usuario root puede crear grupos")
 		return fmt.Errorf("error: Solo el usuario root puede crear grupos")
 	}
 
 	// Abrir el archivo del sistema de archivos binario
-	file, err := Utilities.OpenFile(ActiveSession.PartitionPath)
+	file, err := Utilities.OpenFile(ActSession.ActiveSession.PartitionPath)
 	if err != nil {
 		fmt.Println("error: No se pudo abrir el archivo:", err)
 		return fmt.Errorf("error: No se pudo abrir el archivo: %v", err)
@@ -313,7 +314,7 @@ func MKGRP(name string) error{
 	// Buscar la partición en el MBR por su ID
 	for i := 0; i < 4; i++ {
 		if TempMBR.Partitions[i].Size != 0 { // Verifica que la partición tenga tamaño
-			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), ActiveSession.ID) { // Compara el ID
+			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), ActSession.ActiveSession.ID) { // Compara el ID
 				fmt.Println("Partition found")
 				if TempMBR.Partitions[i].Status[0] == '1' { // Verifica si está montada
 					fmt.Println("partition is mounted")
@@ -321,7 +322,7 @@ func MKGRP(name string) error{
 				} else {
 					fmt.Println("partition is not mounted")
 					return fmt.Errorf("partition is not mounted")
-					
+
 				}
 				break
 			}
@@ -334,7 +335,7 @@ func MKGRP(name string) error{
 	} else {
 		fmt.Println("partition not found")
 		return fmt.Errorf("partition not found")
-		
+
 	}
 
 	var tempSuperblock Structs.Superblock
@@ -342,7 +343,7 @@ func MKGRP(name string) error{
 	if err := Utilities.ReadObject(file, &tempSuperblock, int64(TempMBR.Partitions[index].Start)); err != nil {
 		fmt.Println("error: No se pudo leer el Superblock: ", err)
 		return fmt.Errorf("error: No se pudo leer el Superblock: %v", err)
-		
+
 	}
 
 	// Buscar el archivo de usuarios "/users.txt" dentro del sistema de archivos
@@ -350,16 +351,15 @@ func MKGRP(name string) error{
 	if indexInode == -1 {
 		fmt.Println("users.txt no encontrado")
 		return fmt.Errorf("users.txt no encontrado")
-		 
-		
+
 	}
 	var crrInode Structs.Inode
 	// Leer el Inodo del archivo "users.txt"
 	if err := Utilities.ReadObject(file, &crrInode, int64(tempSuperblock.S_inode_start+indexInode*int32(binary.Size(Structs.Inode{})))); err != nil {
-		
+
 		fmt.Println("error: No se pudo leer el Inodo: ", err)
 		return fmt.Errorf("error: No se pudo leer el Inodo: %v", err)
-		
+
 	}
 
 	// Obtener el contenido del archivo users.txt desde los bloques del inodo
@@ -375,30 +375,30 @@ func MKGRP(name string) error{
 	// Iterar a través de las líneas para verificar las credenciales
 	for _, line := range lines {
 		words := strings.Split(line, ",")
-		
+
 		// Si la línea tiene 3 elementos, obtener el indice del ultimo grupo
 		if len(words) == 3 && words[1] == "G" {
 			indexGroup++
 			if words[2] == name && words[0] != "0" {
 				fmt.Println("error: El grupo ya existe")
 				return fmt.Errorf("error: El grupo ya existe")
-			}else if words[2] == name && words[0] == "0" {
+			} else if words[2] == name && words[0] == "0" {
 				fmt.Println("error: El grupo ya existe, pero está eliminado")
 				return fmt.Errorf("error: El grupo ya existe, pero está eliminado")
 			}
 			if words[0] == "0" {
 				indexGroup--
 			}
-			
+
 		}
 	}
-	newIndex := strconv.Itoa(indexGroup) 
-	newGroup := newIndex+ ",G," + name + "\n"
+	newIndex := strconv.Itoa(indexGroup)
+	newGroup := newIndex + ",G," + name + "\n"
 	fmt.Println("New group:", newGroup)
 	newData := cleanData + newGroup
 	fmt.Println("Complete data:")
 	fmt.Println(newData)
-	
+
 	// Guardar el contenido usando la función que maneja múltiples bloques
 	if err := AppendToFileBlock(&crrInode, newData, file, tempSuperblock); err != nil {
 		fmt.Println("error al escribir en users.txt:", err)
@@ -406,53 +406,53 @@ func MKGRP(name string) error{
 	}
 
 	/*
-	// Verificar si el nuevo contenido cabe en el bloque
-	if len(newData) > 64 {
-		fmt.Println("Advertencia: El contenido excede el tamaño del bloque, se truncará el contenido")
-		newData = newData[:64] // Truncar el contenido a 64 bytes
-	}
+		// Verificar si el nuevo contenido cabe en el bloque
+		if len(newData) > 64 {
+			fmt.Println("Advertencia: El contenido excede el tamaño del bloque, se truncará el contenido")
+			newData = newData[:64] // Truncar el contenido a 64 bytes
+		}
 
-	// Guardar los datos actualizados de nuevo en el bloque de archivo correspondiente
-	var fileBlock Structs.Fileblock
-	copy(fileBlock.B_content[:], newData)
+		// Guardar los datos actualizados de nuevo en el bloque de archivo correspondiente
+		var fileBlock Structs.Fileblock
+		copy(fileBlock.B_content[:], newData)
 
-	// Escribir el bloque actualizado de vuelta en el archivo
-	if err := Utilities.WriteObject(file, fileBlock, int64(tempSuperblock.S_block_start+crrInode.I_block[0]*int32(binary.Size(Structs.Fileblock{})))); err != nil {
-		return fmt.Errorf("error al escribir en users.txt: %v", err)
-		 
-	}
-	
-	// Verificar el contenido del bloque después de la escritura
-	fmt.Println("====== Verificación del bloque de archivo ======")
-	var updatedFileBlock Structs.Fileblock
-	if err := Utilities.ReadObject(file, &updatedFileBlock, int64(tempSuperblock.S_block_start+crrInode.I_block[0]*int32(binary.Size(Structs.Fileblock{})))); err != nil {
-		return fmt.Errorf("error al leer el bloque actualizado: %v", err)
-		 
-	}
-	Structs.PrintFileblock(updatedFileBlock) // Imprimir el bloque de archivo actualizado*/
+		// Escribir el bloque actualizado de vuelta en el archivo
+		if err := Utilities.WriteObject(file, fileBlock, int64(tempSuperblock.S_block_start+crrInode.I_block[0]*int32(binary.Size(Structs.Fileblock{})))); err != nil {
+			return fmt.Errorf("error al escribir en users.txt: %v", err)
+
+		}
+
+		// Verificar el contenido del bloque después de la escritura
+		fmt.Println("====== Verificación del bloque de archivo ======")
+		var updatedFileBlock Structs.Fileblock
+		if err := Utilities.ReadObject(file, &updatedFileBlock, int64(tempSuperblock.S_block_start+crrInode.I_block[0]*int32(binary.Size(Structs.Fileblock{})))); err != nil {
+			return fmt.Errorf("error al leer el bloque actualizado: %v", err)
+
+		}
+		Structs.PrintFileblock(updatedFileBlock) // Imprimir el bloque de archivo actualizado*/
 
 	fmt.Println("Grupo creado con éxito:", newGroup)
-	
+
 	fmt.Println("======End MKGRP======")
 	return nil
 }
 
-//RMGRP
-func RMGRP(name string) error{
+// RMGRP
+func RMGRP(name string) error {
 	fmt.Println("======Start RMGRP======")
 	fmt.Println("Group name:", name)
 
 	// Verificar si el usuario root ya está logueado
-	if !ActiveSession.IsActive{
+	if !ActSession.ActiveSession.IsActive {
 		fmt.Println("error: No hay ninguna sesión activa. Debe hacer login primero")
 		return fmt.Errorf("error: No hay ninguna sesión activa. Debe hacer login primero")
-	} else if ActiveSession.User != "root" {
+	} else if ActSession.ActiveSession.User != "root" {
 		fmt.Println("error: Solo el usuario root puede crear grupos")
 		return fmt.Errorf("error: Solo el usuario root puede crear grupos")
 	}
 
 	// Abrir el archivo del sistema de archivos binario
-	file, err := Utilities.OpenFile(ActiveSession.PartitionPath)
+	file, err := Utilities.OpenFile(ActSession.ActiveSession.PartitionPath)
 	if err != nil {
 		fmt.Println("error: No se pudo abrir el archivo:", err)
 		return fmt.Errorf("error: No se pudo abrir el archivo: %v", err)
@@ -474,7 +474,7 @@ func RMGRP(name string) error{
 	// Buscar la partición en el MBR por su ID
 	for i := 0; i < 4; i++ {
 		if TempMBR.Partitions[i].Size != 0 { // Verifica que la partición tenga tamaño
-			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), ActiveSession.ID) { // Compara el ID
+			if strings.Contains(string(TempMBR.Partitions[i].Id[:]), ActSession.ActiveSession.ID) { // Compara el ID
 				fmt.Println("Partition found")
 				if TempMBR.Partitions[i].Status[0] == '1' { // Verifica si está montada
 					fmt.Println("partition is mounted")
@@ -482,7 +482,7 @@ func RMGRP(name string) error{
 				} else {
 					fmt.Println("partition is not mounted")
 					return fmt.Errorf("partition is not mounted")
-					
+
 				}
 				break
 			}
@@ -495,7 +495,7 @@ func RMGRP(name string) error{
 	} else {
 		fmt.Println("partition not found")
 		return fmt.Errorf("partition not found")
-		
+
 	}
 
 	var tempSuperblock Structs.Superblock
@@ -533,33 +533,31 @@ func RMGRP(name string) error{
 		words := strings.Split(line, ",")
 		// Si la línea tiene 3 elementos, obtener el indice del ultimo grupo
 		if len(words) == 3 && words[1] == "G" {
-			if words[2] == name && words[0] != "0"{
+			if words[2] == name && words[0] != "0" {
 				words[0] = "0"
-				modifiedData += "0,G,"+ name + "\n"
+				modifiedData += "0,G," + name + "\n"
 				continue
-			}else if words[2] == name && words[0] == "0"{
+			} else if words[2] == name && words[0] == "0" {
 				fmt.Println("error: El grupo ya está eliminado")
 				return fmt.Errorf("error: El grupo ya está eliminado")
-			}else{
-				modifiedData += line+"\n"
+			} else {
+				modifiedData += line + "\n"
 				continue
 			}
-			
+
 		}
 		modifiedData += line + "\n"
 	}
 	cleanData = GetCleanedData(modifiedData)
 	fmt.Println("Data despues de eliminar el grupo:", cleanData)
-	
-	
+
 	// Guardar el contenido usando la función que maneja múltiples bloques
 	if err := AppendToFileBlock(&crrInode, cleanData, file, tempSuperblock); err != nil {
 		return fmt.Errorf("error al escribir en users.txt: %v", err)
 	}
 
-
 	fmt.Println("Grupo eliminado con éxito:", name)
-	
+
 	fmt.Println("======End RMGRP======")
 	return nil
 }
@@ -571,7 +569,7 @@ func GetCleanedData(data string) string {
 }
 
 func AppendToFileBlock(inode *Structs.Inode, newData string, file *os.File, superblock Structs.Superblock) error {
-	
+
 	// Convertir a bytes
 	dataBytes := []byte(newData)
 	blockSize := binary.Size(Structs.Fileblock{})
@@ -614,6 +612,6 @@ func AppendToFileBlock(inode *Structs.Inode, newData string, file *os.File, supe
 	if err := Utilities.WriteObject(file, *inode, inodeOffset); err != nil {
 		return fmt.Errorf("error al actualizar el inodo: %v", err)
 	}
-	
+
 	return nil
 }
